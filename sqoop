@@ -136,6 +136,65 @@ $sqoop import \
 --delete-target-dir
 --split-by order_status
 
+auto-reset num-mappers to 1 if there are no Pk on the table if we dont use split-by column
+
+
+$sqoop import \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--table order_items_nopk \
+--warehouse-dir /user/awsphani/sqoop_import/retail_db \
+--delete-target-dir
+--autoreset-to-one-mapper
+
+file formats --as-textfile ,--as-avrodatafile (json binary file), --as-parquetfile (coumunar),--as-sequencefile ( binary file)
+
+$sqoop import \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--table order_items \
+--warehouse-dir /user/awsphani/sqoop_import/retail_db \
+--num-mappers 2 \
+--delete-target-dir \
+--as-parquetfile
+
+compressing the data-Gzip,deflate,snappy... --compress default for Gzip
+
+$sqoop import \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--table order_items \
+--warehouse-dir /user/awsphani/sqoop_import/retail_db \
+--num-mappers 2 \
+--delete-target-dir \
+--as-textfile \
+--compress
+
+to use diff compresion
+cd etc/hadoop/conf ->core-site.xml->search for avialble codecs, those jar files needed for cdecs should be present in right paths
+
+
+$sqoop import \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--table order_items \
+--warehouse-dir /user/awsphani/sqoop_import/retail_db \
+--num-mappers 2 \
+--delete-target-dir \
+--as-textfile \
+--compress \
+--compression-codec org.apache.hadoop.io.compress.SnappyCodec
+
+
+Boundary query:
+
+
+
+
 
 
 
