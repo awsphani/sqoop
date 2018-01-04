@@ -1,2 +1,110 @@
 https://www.youtube.com/watch?v=icIj5v0BhHc&list=PLf0swTFhTI8rDQXfH8afWtGgpOTnhebDx
 https://www.youtube.com/watch?v=olVVbKsbOzU&list=PLf0swTFhTI8qaFYQyR99wchg1Kx_BFXSg
+https://www.youtube.com/watch?v=7IrXZZDSvBc&list=PLf0swTFhTI8qaFYQyR99wchg1Kx_BFXSg&index=4
+
+sqoop user guide 1.4.6
+
+$ mysql -u retail_user -h ms.itversity.com -p
+password:  itversity
+
+$sqoop version
+$sqoop help list-databases;
+$sqoop list-databases \
+--connect jdbc:mysql://ms.itversity.com:3306 \
+--username retail_user \
+--password itversity or --password-file /user/pkum60/data/pwd.txt
+
+$sqoop list-tables \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity 
+
+$sqoop eval \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--query "select * from orders limit 10"
+
+to check permission if we can insert using eval
+$sqoop eval \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--query "insert into orders values(100000,\"2017-10-31 00:00:00:0\",\"DUMMY\" )"
+
+hadoop fs -rm -R /user/awsphani/sqoop_import/retail_db/order_items;
+
+
+$sqoop import \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--table order_items \
+--targer-dir /user/awsphani/sqoop_import/retail_db/order_items or --warehouse-dir /user/awsphani/sqoop_import/retail_db
+
+--targer-dir =>dir should notexists, --warehouse-dir => will create subdir with tablename in the path provided 
+
+validate:
+
+hadoop fs -ls /user/awsphani/sqoop_import/retail_db/order_items;
+
+hadoop fs -tail /user/awsphani/sqoop_import/retail_db/order_items/part-m-00001;
+
+default delimiter is comma ,default --num-mappers is 4
+
+hadoop fs -rm -R /user/awsphani/sqoop_import/retail_db/order_items; or use --delete-target-dir
+
+
+$sqoop import \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--table order_items \
+--warehouse-dir /user/awsphani/sqoop_import/retail_db \
+--num-mappers 1
+--delete-target-dir
+
+
+exec life cycle,
+
+sqoop cmd will be converted to mapreduce and executes,
+1.will do select with limit 1 to know the columns and data types and creates .java file with that info
+then it will count no of recs, checks min and max bounds using pks, the divide recs using no mappers 4 default,
+
+--append will append the new file 
+
+
+$sqoop import \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--table order_items \
+--warehouse-dir /user/awsphani/sqoop_import/retail_db \
+--num-mappers 1
+--append
+
+
+--append and --delete-target-dir are mutually exclusive;
+
+
+if we need to import 10 tables use warehouse dir
+
+$sqoop import \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--warehouse-dir /user/awsphani/sqoop_import/retail_db \
+--num-mappers 1
+--delete-target-dir
+
+
+
+
+
+
+
+
+
+
+
+
