@@ -87,20 +87,54 @@ $sqoop import \
 --append and --delete-target-dir are mutually exclusive;
 
 
-if we need to import 10 tables use warehouse dir
+if we need to import all tables from db ,use --warehouse-dir
 
 $sqoop import \
 --connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
 --username retail_user \
 --password itversity \
 --warehouse-dir /user/awsphani/sqoop_import/retail_db \
---num-mappers 1
+--num-mappers 1 \
+--delete-target-dir
+
+create table order_items_nopk as select * from order_items;
+
+
+$sqoop import \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--table order_items_nopk \
+--warehouse-dir /user/awsphani/sqoop_import/retail_db \
 --delete-target-dir
 
 
+//if no pk, sqoop will not know how to split the the data for the 4 threads and complain so we have have to use --split-by to define the col
+//spliy-by column should be indexed,else it will do table full scan, as col is indexed it will scan only boundarys as per thread
+//values in the field should be sparse(shud have as many recs as possible) and often seq generated or evenly incremented
+//should not have null values
 
 
+$sqoop import \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--table order_items_nopk \
+--warehouse-dir /user/awsphani/sqoop_import/retail_db \
+--delete-target-dir
+--split-by order_item_order_id
 
+below will fail as spliy-by non-numeric fld, so have to use -Dord.apache.sqoop.splitter.allow_text_splitter=true 
+
+$sqoop import \
+-Dord.apache.sqoop.splitter.allow_text_splitter=true 
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--table orders \
+--warehouse-dir /user/awsphani/sqoop_import/retail_db \
+--delete-target-dir
+--split-by order_status
 
 
 
