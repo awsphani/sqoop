@@ -190,7 +190,155 @@ $sqoop import \
 --compression-codec org.apache.hadoop.io.compress.SnappyCodec
 
 
-Boundary query:
+Boundary query: by default sqoop will get min and max values of the key to get boundaries to split the data,
+we can specify the boundary to avoid the sqoop to compute it, to make faster,
+below i want to consider order_item_id only from 100000
+
+$sqoop import \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--table order_items \
+--warehouse-dir /user/awsphani/sqoop_import/retail_db \
+--boundary-query 'select min(order_item_id),max(order_item_id) from order_items where order_item_id >99999'
+
+we can give min, max vals directly to reduce min max calculations.
+
+$sqoop import \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--table order_items \
+--warehouse-dir /user/awsphani/sqoop_import/retail_db \
+--boundary-query 'select 100000, 17219'
+
+Selecting specific columns from table, query; table and/or columns is  mutually exclusive with columns
+
+
+$sqoop import \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--table order_items \
+--columns order_item_order_id,order_item_id,order_item_subtotal \
+--warehouse-dir /user/awsphani/sqoop_import/retail_db \
+--num-mappers 2 \
+--delete-target-dir \
+
+'select o.*,sum(oi.order_item_subtotal) order_revenue
+from orders o join order_items oi
+on o.order_id=oi.order_item_order_id
+group by o.order_id,o.order_date,o.order_customer_id,o.order_status'
+
+--query => table or columns cannot be used, as below num-mappers is more than 1 we have specify split-by
+and we have to specify target-dir with full path as table name cannot be used with query
+our query must include the token $CONDITIONS which each Sqoop process will replace with a unique condition expression. 
+You must also select a splitting column with --split-by.
+
+$sqoop import \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--query 'select o.*,sum(oi.order_item_subtotal) order_revenue \
+from orders o join order_items oi \
+on o.order_id=oi.order_item_order_id \
+group by o.order_id,o.order_date,o.order_customer_id,o.order_status' WHERE $CONDITIONS' \
+--split-by order_id
+--target-dir /user/awsphani/sqoop_import/retail_db/orders_revenue \
+--num-mappers 2 \
+--delete-target-dir \
+
+delimiters and handling nulls:
+
+mysql -u hr_user -h ms.itversity.com -p
+
+$sqoop import \
+--connect jdbc:mysql://ms.itversity.com:3306 \hr_db \
+--username hr_user \
+--password itversity \
+--table employees \
+--warehouse-dir /user/awsphani/sqoop_import/hr_db \
+
+hadoop fs -get /user/awsphani/sqoop_import/hr_db/employees .
+
+employees has col commision_pct which can be null, so we have to set to -1 if commision is null
+null-string and null-non-string can be used to replace the null values in the record
+columns/flds are delimted by , by default; to change use --fields-terminated-by
+--enclosed-by to enclose columns/flds
+--optionally-enclosed-by , if default delimitter is used and address col has , inside data 
+we use optionally-enclosed-by for the address field
+
+****below very important 
+
+$sqoop import \
+--connect jdbc:mysql://ms.itversity.com:3306 \hr_db \
+--username hr_user \
+--password itversity \
+--table employees \
+--warehouse-dir /user/awsphani/sqoop_import/hr_db \
+--null-non-string -1 
+--fields-terminated-by "\t" \              => for ascii null values,  "\000"
+--lines-terminated-by ":"
+
+
+incremental loads using query, where alternative
+
+
+$sqoop import \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--query "select * from orders where \$CONDITIONS and order_date like '2014-01%'" \
+--split-by order_id \
+--target-dir /user/awsphani/sqoop_import/retail_db/orders \
+--num-mappers 2 \
+--delete-target-dir \
+--append
+
+$sqoop import \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--table orders \ 
+--where "order_date like '2014-01%'" \
+--split-by order_id \
+--target-dir /user/awsphani/sqoop_import/retail_db/orders/  \
+--num-mappers 2 \
+--delete-target-dir \
+--append
+
+
+Argument	Description
+--check-column (col)	Specifies the column to be examined when determining which rows to import. (the column should not be of type CHAR/NCHAR/VARCHAR/VARNCHAR/ LONGVARCHAR/LONGNVARCHAR)
+--incremental (mode)	Specifies how Sqoop determines which rows are new. Legal values for mode include append and lastmodified.
+--last-value (value)	Specifies the maximum value of the check column from the previous import.
+
+Sqoop supports two types of incremental imports: append and lastmodified. 
+You can use the --incremental argument to specify the type of incremental import to perform.
+
+You should specify append mode when importing a table where new rows are continually being added with increasing row id values. You 
+specify the column containing the row’s id with --check-column. 
+Sqoop imports rows where the check column has a value greater than the one specified with --last-value.
+
+
+
+$sqoop import \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--table orders \ 
+----check-column order_date 
+--incremental-append
+--split-by order_id \
+--target-dir /user/awsphani/sqoop_import/retail_db/orders/  \
+--num-mappers 2 \
+--delete-target-dir \
+--incremental-append \
+--last-value '2014-01-30'
+
+
+
+
 
 
 
