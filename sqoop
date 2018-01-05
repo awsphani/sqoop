@@ -281,7 +281,7 @@ $sqoop import \
 --lines-terminated-by ":"
 
 
-incremental loads using query, where alternative
+incremental loads using query, where, alternative
 
 
 $sqoop import \
@@ -292,7 +292,6 @@ $sqoop import \
 --split-by order_id \
 --target-dir /user/awsphani/sqoop_import/retail_db/orders \
 --num-mappers 2 \
---delete-target-dir \
 --append
 
 $sqoop import \
@@ -303,8 +302,7 @@ $sqoop import \
 --where "order_date like '2014-01%'" \
 --split-by order_id \
 --target-dir /user/awsphani/sqoop_import/retail_db/orders/  \
---num-mappers 2 \
---delete-target-dir \
+,--num-mappers 2 \
 --append
 
 
@@ -326,15 +324,165 @@ $sqoop import \
 --connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
 --username retail_user \
 --password itversity \
---table orders \ 
-----check-column order_date 
---incremental-append
+--target-dir /user/awsphani/sqoop_import/retail_db/orders  \
+--num-mappers 2 \
 --split-by order_id \
---target-dir /user/awsphani/sqoop_import/retail_db/orders/  \
+--table orders \
+--check-column order_date \    => should not be char,varchar,string feilds, normally should be numeric fld   
+--incremental-append
+--last-value '2014-01-30'
+
+
+hive-import will create table if not exists, default delimiter is ^A , for sqoop ,
+
+
+
+$sqoop import \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--table order_items \
+--hive-import \
+--hive-database awsphani_sqoop_import \
+--hive-table order_items \
 --num-mappers 2 \
 --delete-target-dir \
---incremental-append \
---last-value '2014-01-30'
+
+if we run again above cmd, it will append the data to exisiting table
+
+--hive-overwrite will drop the existing table and recreate it
+
+$sqoop import \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--table order_items \
+--hive-import \
+--hive-database awsphani_sqoop_import \
+--hive-table order_items \
+--hive-overwrite \
+--num-mappers 2 \
+--delete-target-dir \
+
+
+if table hive exists, below will fail ; --create-hive-table => default is false, so will fail if hive table exists
+
+--create-hive-table and --hive-overwrite are mutually exclusive
+
+$sqoop import \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--table order_items \
+--hive-import \
+--hive-database awsphani_sqoop_import \
+--hive-table order_items \
+--create-hive-table \
+--num-mappers 2 \
+
+
+$sqoop import \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--table orders \
+--hive-import \
+--hive-database awsphani_sqoop_import \
+--hive-table orders \
+--create-hive-table \
+--num-mappers 2 \
+
+
+hive import will import to staging area (/user/awsphani/order_items)before writing to final loc, if above fails because bcoz of table exixts,
+need to clean the staging , hadoop fs -rm /user/awsphani/order_items and run the hive import with overwrite option
+
+
+import ALL TABLES;
+
+limitations:
+--warehouse-dir is mandatory
+better to use autoreset-to-one-mapper
+cannot specify many args like --query, --cols, --where which does filtering and transformations on the data
+incremental import not possible
+
+
+$sqoop import-all-tables \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_db \
+--username retail_user \
+--password itversity \
+--warehouse-dir /user/awsphani/sqoop_import/retail_db \
+--autoreset-to-one-mapper
+
+in hive:
+create table daily_revenue as
+select order_date,sum(order_item_subtotal) daily_revenue
+from orders join order_items on
+order_id = order_items_order_id
+where order_date like '2013-07%'
+group by order_date;
+
+get location: show formatted table daily_revenue => /apps/hive/warehouse/awsphani_sqoop_import.db/daily_revenue
+ in hive default delimiter is ^A => "\001"
+
+sqoop export
+
+in mysql:  create table daily_revenue( order_date varchar(30),revenue float);
+
+sqoop export \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_export \
+--username retail_user \
+--password itversity \
+--export-dir /apps/hive/warehouse/awsphani_sqoop_import.db/daily_revenue \
+--table daily_revenue \
+--input-fields-terminated-by "\001"
+
+column mapping
+
+
+sqoop export \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_export \
+--username retail_user \
+--export-dir /apps/hive/warehouse/awsphani_sqoop_import.db/daily_revenue \
+--table daily_revenue \
+--columns order_date,revenue    =>mysql target flds
+--input-fields-terminated-by "\001"
+
+--call <SP>, --table <tablename> are mutually exclusive
+
+updating the data
+
+if we have PK on order_date in target mysql, if we run above export 2 times, 2nd time it will fail bcoz of PK
+
+to update the exisiting rec --update-key -> will update only records mathing the PK and ignore others
+
+
+sqoop export \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_export \
+--username retail_user \
+--password itversity \
+--export-dir /apps/hive/warehouse/awsphani_sqoop_import.db/daily_revenue \
+--table daily_revenue \
+--update-key  order_date \
+--input-fields-terminated-by "\001"
+--num-mappers 1
+
+upsert --update-mode allowinsert =>update matching pks else insert
+
+sqoop export \
+--connect jdbc:mysql://ms.itversity.com:3306 \retail_export \
+--username retail_user \
+--password itversity \
+--export-dir /apps/hive/warehouse/awsphani_sqoop_import.db/daily_revenue \
+--table daily_revenue \
+--update-key  order_date \
+--update-mode allowinsert
+--input-fields-terminated-by "\001"
+--num-mappers 1
+
+
+
+
+
 
 
 
